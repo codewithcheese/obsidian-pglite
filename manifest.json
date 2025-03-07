@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-pg-lite",
+	"name": "PGlite for Obsidian",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
+	"description": "Integrates PGlite database with IndexedDB support in Obsidian.",
+	"author": "Your Name",
+	"authorUrl": "https://yourwebsite.com",
+	"isDesktopOnly": true
 }

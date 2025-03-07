@@ -33,12 +33,17 @@ const context = await esbuild.context({
 		"@lezer/lr",
 		...builtins],
 	format: "cjs",
-	target: "es2018",
+	target: "es2020",
 	logLevel: "info",
-	sourcemap: prod ? false : "inline",
+	sourcemap: "inline",
 	treeShaking: true,
 	outfile: "main.js",
-	minify: prod,
+	minify: false,
+	define: {
+		// Prevent PGlite from detecting a Node environment
+		'process': '{}',
+		'global': 'window',
+	},
 });
 
 if (prod) {
