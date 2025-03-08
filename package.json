@@ -22,6 +22,7 @@
 		"typescript": "4.7.4"
 	},
 	"dependencies": {
+		"@ai-sdk/openai": "^1.2.1",
 		"@electric-sql/pglite": "^0.2.17",
 		"ai": "^4.1.54",
 		"ollama-ai-provider": "^1.2.0"

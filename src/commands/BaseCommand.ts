@@ -1,5 +1,8 @@
 import { Notice, Plugin } from 'obsidian';
 import PGLitePlugin from '../../main';
+import { PGliteVectorStore } from '../storage/PGliteVectorStore';
+import { getModelInfo } from '../settings/PGLitePluginSettings';
+import { getConfigForModel, getEmbeddingModel } from '../utils/EmbeddingHelpers';
 
 export abstract class BaseCommand {
     constructor(protected plugin: PGLitePlugin) {}
@@ -17,26 +20,46 @@ export abstract class BaseCommand {
     }
 
     /**
-     * Check if the vector store is ready
-     * @returns True if the vector store is ready
+     * Create a vector store instance
+     * @returns A new vector store instance
      */
-    protected checkVectorStoreReady(): this is { plugin: PGLitePlugin & { vectorStore: NonNullable<PGLitePlugin['vectorStore']> } } {
-        if (!this.plugin.vectorStore || !this.plugin.vectorStore.isReady()) {
-            new Notice('Vector store is not initialized yet');
-            return false;
+    protected createVectorStore(): PGliteVectorStore {
+        if (!this.checkProviderReady()) {
+            throw new Error('Provider is not ready');
         }
-        return true;
+        
+        // Get model info to determine dimensions
+        const modelInfo = getModelInfo(this.plugin.settings.selectedModel);
+        if (!modelInfo) {
+            throw new Error(`Model ${this.plugin.settings.selectedModel} not found in available models`);
+        }
+        
+        // Create and return a new vector store
+        return new PGliteVectorStore(
+            this.plugin.provider,
+            modelInfo.dimensions,
+            'vector_test'            
+        );
     }
 
     /**
-     * Check if the embedding model is ready
-     * @returns True if the embedding model is ready
+     * Create an embedding model instance
+     * @returns A new embedding model instance
      */
-    protected checkEmbeddingModelReady(): this is { plugin: PGLitePlugin & { embeddingModel: NonNullable<PGLitePlugin['embeddingModel']> } } {
-        if (!this.plugin.embeddingModel) {
-            new Notice('Embedding model is not initialized yet');
-            return false;
+    protected createEmbeddingModel() {
+        const modelInfo = getModelInfo(this.plugin.settings.selectedModel);
+        if (!modelInfo) {
+            throw new Error(`Model ${this.plugin.settings.selectedModel} not found in available models`);
         }
-        return true;
+        
+        // Get the appropriate configuration for the model's provider
+        const config = getConfigForModel(this.plugin.settings, modelInfo);
+            
+        return getEmbeddingModel(
+            this.plugin.settings.selectedModel,
+            config
+        );
     }
+    
+
 }

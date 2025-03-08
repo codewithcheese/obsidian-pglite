@@ -2,26 +2,12 @@ import { App, Editor, MarkdownView, Modal, Notice, Plugin, ButtonComponent } fro
 import { PGLitePluginSettings, DEFAULT_SETTINGS } from './src/settings/PGLitePluginSettings';
 import { PGLiteSettingTab } from './src/settings/PGLiteSettingTab';
 import { PGliteProvider } from './src/storage/PGliteProvider';
-import { PGliteVectorStore } from './src/storage/PGliteVectorStore';
-import { OllamaModel } from './src/models/OllamaModel';
-import { ModelRegistry } from './src/models/ModelRegistry';
-import { EmbeddingModel } from './src/models/EmbeddingModel';
-import {
-    CreateTableCommand,
-    InsertTestDataCommand,
-    QueryTestDataCommand,
-    InsertNoteDataCommand,
-    CreateVectorTableCommand,
-    InsertNoteAsVectorCommand,
-    SearchSimilarToNoteCommand,
-    SearchSimilarWithCustomLimitCommand
-} from './src/commands';
+import { CreateVectorTableCommand, InsertNoteAsVectorCommand, SearchSimilarToNoteCommand, SearchSimilarWithCustomLimitCommand } from './src/commands/VectorCommands';
+import { CreateTableCommand, InsertNoteDataCommand, InsertTestDataCommand, QueryTestDataCommand } from './src/commands/DatabaseCommands';
 
 export default class PGLitePlugin extends Plugin {
 	settings: PGLitePluginSettings;
 	provider: PGliteProvider | null = null;
-	vectorStore: PGliteVectorStore | null = null;
-	embeddingModel: EmbeddingModel | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -133,27 +119,7 @@ export default class PGLitePlugin extends Plugin {
 			
 			await this.provider.initialize();
 			
-			// 2. Get the model information from the registry
-			const modelInfo = ModelRegistry.getModel(this.settings.ollamaModel);
-			if (!modelInfo) {
-				throw new Error(`Model ${this.settings.ollamaModel} not found in registry`);
-			}
-			
-			// 3. Create the Ollama model
-			this.embeddingModel = new OllamaModel(
-				modelInfo.name,
-				modelInfo.dimensions,
-				modelInfo.description,
-				this.settings.ollamaBaseUrl
-			);
-			
-			// 4. Create the vector store
-			this.vectorStore = new PGliteVectorStore(
-				this.provider,
-				modelInfo.dimensions,
-				'vector_test',  // Using default table name
-				this.settings.relaxedDurability
-			);
+			// No need to initialize the vector store here - it will be created on demand
 			
 			console.log('PGlite and Embedding Model initialized successfully');
 			new Notice('PGlite database connected!');
@@ -192,60 +158,6 @@ export default class PGLitePlugin extends Plugin {
 		}
 	}
 
-	/**
-	 * Update the embedding model used by the plugin
-	 * @param modelName The name of the model to use
-	 */
-	async updateEmbeddingModel(modelName: string): Promise<void> {
-		// Update the model in settings
-		this.settings.ollamaModel = modelName;
-		
-		// Save settings to disk without reinitializing PGlite
-		await this.saveSettings(false);
-		
-		// Only update the components that need to change
-		if (this.provider && this.provider.isReady() && this.vectorStore) {
-			try {
-				// 1. Get the model information from the registry
-				const modelInfo = ModelRegistry.getModel(modelName);
-				if (!modelInfo) {
-					throw new Error(`Model ${modelName} not found in registry`);
-				}
-				
-				// 2. Create the new Ollama model
-				this.embeddingModel = new OllamaModel(
-					modelInfo.name,
-					modelInfo.dimensions,
-					modelInfo.description,
-					this.settings.ollamaBaseUrl
-				);
-				
-				// 3. Update the vector store dimensions
-				this.vectorStore.setDimensions(modelInfo.dimensions);
-				
-				// 4. Recreate the vector table with new dimensions
-				await this.vectorStore.createTable(true); // Force recreate
-				
-				// 6. Save the database after recreating the vector table
-				await this.vectorStore.save();
-				
-				// Log the update
-				console.log(`Updated embedding model to ${modelName}`);
-				new Notice(`Updated embedding model to ${modelName}`);
-			} catch (error) {
-				console.error('Error updating embedding model:', error);
-				new Notice(`Error updating embedding model: ${error}`);
-				
-				// Fall back to full reinitialization if the targeted update fails
-				await this.provider.close();
-				await this.initializePGlite();
-			}
-		} else {
-			// If provider isn't ready, do a full initialization
-			await this.initializePGlite();
-			console.log(`Updated embedding model to ${modelName}`);
-			new Notice(`Updated embedding model to ${modelName}`);
-		}
-	}
+
 }
 

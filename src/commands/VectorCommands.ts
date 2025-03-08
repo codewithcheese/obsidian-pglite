@@ -6,14 +6,15 @@ import { checkTableCompatibility, insertContentAsVector, recreateVectorTable, se
 
 export class CreateVectorTableCommand extends BaseCommand {
     async execute(): Promise<void> {
-        if (!this.checkVectorStoreReady()) return;
-
         try {
+            // Create the vector store
+            const vectorStore = this.createVectorStore();
+            
             // Create the vector table
-            await this.plugin.vectorStore.createTable(true); // Force recreate
+            await vectorStore.createTable(true); // Force recreate
             
             // Save the database
-            await this.plugin.vectorStore.save();
+            await vectorStore.save();
             new Notice('Vector table created successfully');
         } catch (error) {
             console.error('Error creating vector table:', error);
@@ -24,32 +25,32 @@ export class CreateVectorTableCommand extends BaseCommand {
 
 export class InsertNoteAsVectorCommand extends BaseCommand {
     async execute(editor: Editor): Promise<void> {
-        if (!this.checkEmbeddingModelReady() || !this.checkVectorStoreReady()) return;
-
         const content = editor.getValue();
         try {
             // Show a notice that we're generating the embedding
             const notice = new Notice('Generating embedding...', 0);
             
+            // Create the embedding model and vector store
+            const embeddingModel = this.createEmbeddingModel();
+            const vectorStore = this.createVectorStore();
+            
             // Check if the table is compatible with the current model
-            const compatibility = await checkTableCompatibility(this.plugin.embeddingModel, this.plugin.vectorStore);
+            const compatibility = await checkTableCompatibility(embeddingModel, vectorStore);
             
             if (!compatibility.compatible) {
                 // Ask user for confirmation to recreate the table
                 const confirmModal = new ModelChangeConfirmationModal(
                     this.plugin.app,
-                    getModelName(this.plugin.embeddingModel),
+                    getModelName(embeddingModel),
                     compatibility.modelDimensions,
                     compatibility.tableDimensions || 0,
                     async (confirmed) => {
                         if (confirmed) {
                             // Recreate the vector table
-                            if (this.plugin.vectorStore) {
-                                await recreateVectorTable(this.plugin.vectorStore);
-                                
-                                // Try inserting again
-                                await this.execute(editor);
-                            }
+                            await recreateVectorTable(vectorStore);
+                            
+                            // Try inserting again
+                            await this.execute(editor);
                         }
                     }
                 );
@@ -59,7 +60,7 @@ export class InsertNoteAsVectorCommand extends BaseCommand {
             }
             
             // Insert content using the helper function
-            const id = await insertContentAsVector(this.plugin.embeddingModel, this.plugin.vectorStore, content);
+            const id = await insertContentAsVector(embeddingModel, vectorStore, content);
             
             // Close the notice
             notice.hide();
@@ -74,23 +75,25 @@ export class InsertNoteAsVectorCommand extends BaseCommand {
 
 export class SearchSimilarToNoteCommand extends BaseCommand {
     async execute(editor: Editor, limit?: number): Promise<void> {
-        if (!this.checkEmbeddingModelReady() || !this.checkVectorStoreReady()) return;
-
         const content = editor.getValue();
         try {
             // Show a notice that we're searching
             const notice = new Notice('Searching for similar content...', 0);
             
+            // Create the vector store
+            const vectorStore = this.createVectorStore();
+            
             // Check if the table exists and is compatible
-            const tableInfo = await this.plugin.vectorStore.checkTableExists();
+            const tableInfo = await vectorStore.checkTableExists();
             if (!tableInfo.exists) {
                 notice.hide();
                 new Notice('Vector table does not exist. Please create it first.');
                 return;
             }
             
-            // Search for similar content using the helper function
-            const results = await searchSimilarContent(this.plugin.embeddingModel, this.plugin.vectorStore, content, limit);
+            // Create the embedding model and search for similar content
+            const embeddingModel = this.createEmbeddingModel();
+            const results = await searchSimilarContent(embeddingModel, vectorStore, content, limit);
             
             // Close the notice
             notice.hide();

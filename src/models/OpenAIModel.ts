@@ -1,20 +1,20 @@
 import { embed } from 'ai';
-import { ollama, createOllama } from 'ollama-ai-provider';
+import { createOpenAI } from '@ai-sdk/openai';
 import { EmbeddingModel, ModelConfig } from './EmbeddingModel';
 
 /**
- * Implementation of EmbeddingModel using Ollama
+ * Implementation of EmbeddingModel using OpenAI
  */
-export class OllamaModel implements EmbeddingModel {
-    private ollamaProvider;
+export class OpenAIModel implements EmbeddingModel {
+    private openaiProvider;
     private embeddingModel;
     
     /**
-     * Create a new OllamaModel
+     * Create a new OpenAIModel
      * @param name Model name
      * @param dimensions Number of dimensions in the embedding
      * @param description Human-readable description of the model
-     * @param config Configuration for the Ollama API
+     * @param config Configuration for the OpenAI API
      */
     constructor(
         public readonly name: string,
@@ -22,13 +22,14 @@ export class OllamaModel implements EmbeddingModel {
         public readonly description: string,
         private config: ModelConfig
     ) {
-        // Create a custom Ollama provider with the specified base URL
-        this.ollamaProvider = createOllama({
+        // Create a custom OpenAI provider with the API key
+        this.openaiProvider = createOpenAI({
+            apiKey: this.config.apiKey,
             baseURL: this.config.baseURL
         });
         
         // Create an embedding model using the provider
-        this.embeddingModel = this.ollamaProvider.embedding(name);
+        this.embeddingModel = this.openaiProvider.embedding(name);
     }
     
     /**
@@ -37,9 +38,9 @@ export class OllamaModel implements EmbeddingModel {
      * @returns A vector representation of the text
      */
     async generateEmbedding(text: string): Promise<number[]> {
-        console.log(`Generating embedding using ${this.name} for text: ${text.substring(0, 50)}...`);
+        console.log(`Generating embedding using OpenAI ${this.name} for text: ${text.substring(0, 50)}...`);
         
-        // Use the AI SDK's embed function with our Ollama model
+        // Use the AI SDK's embed function with our OpenAI model
         const { embedding } = await embed({
             model: this.embeddingModel,
             value: text

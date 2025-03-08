@@ -9,10 +9,24 @@ export interface EmbeddingModel {
 }
 
 /**
+ * Enum for embedding model providers
+ */
+export enum EmbeddingProvider {
+    Ollama = 'ollama',
+    OpenAI = 'openai'
+}
+
+/**
  * Information about an embedding model
  */
 export interface EmbeddingModelInfo {
     name: string;
     dimensions: number;
     description: string;
+    provider: EmbeddingProvider;
+}
+
+export type ModelConfig = {
+    baseURL?: string;
+    apiKey?: string;
 }

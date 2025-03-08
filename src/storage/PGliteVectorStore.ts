@@ -14,8 +14,7 @@ export class PGliteVectorStore {
     constructor(
         private provider: PGliteProvider,
         private dimensions: number,
-        private tableName: string = 'vector_test',
-        private relaxedDurability: boolean = true
+        private tableName: string = 'vector_test'        
     ) {}
     
     /**
