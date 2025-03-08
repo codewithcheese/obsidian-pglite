@@ -29,12 +29,12 @@ export abstract class BaseCommand {
     }
 
     /**
-     * Check if the vector service is ready
-     * @returns True if the vector service is ready
+     * Check if the embedding model is ready
+     * @returns True if the embedding model is ready
      */
-    protected checkVectorServiceReady(): this is { plugin: PGLitePlugin & { vectorService: NonNullable<PGLitePlugin['vectorService']> } } {
-        if (!this.plugin.vectorService) {
-            new Notice('Vector service is not initialized yet');
+    protected checkEmbeddingModelReady(): this is { plugin: PGLitePlugin & { embeddingModel: NonNullable<PGLitePlugin['embeddingModel']> } } {
+        if (!this.plugin.embeddingModel) {
+            new Notice('Embedding model is not initialized yet');
             return false;
         }
         return true;

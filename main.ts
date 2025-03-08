@@ -3,9 +3,9 @@ import { PGLitePluginSettings, DEFAULT_SETTINGS } from './src/settings/PGLitePlu
 import { PGLiteSettingTab } from './src/settings/PGLiteSettingTab';
 import { PGliteProvider } from './src/storage/PGliteProvider';
 import { PGliteVectorStore } from './src/storage/PGliteVectorStore';
-import { VectorService } from './src/services/VectorService';
 import { OllamaModel } from './src/models/OllamaModel';
 import { ModelRegistry } from './src/models/ModelRegistry';
+import { EmbeddingModel } from './src/models/EmbeddingModel';
 import {
     CreateTableCommand,
     InsertTestDataCommand,
@@ -21,7 +21,7 @@ export default class PGLitePlugin extends Plugin {
 	settings: PGLitePluginSettings;
 	provider: PGliteProvider | null = null;
 	vectorStore: PGliteVectorStore | null = null;
-	vectorService: VectorService | null = null;
+	embeddingModel: EmbeddingModel | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -140,7 +140,7 @@ export default class PGLitePlugin extends Plugin {
 			}
 			
 			// 3. Create the Ollama model
-			const ollamaModel = new OllamaModel(
+			this.embeddingModel = new OllamaModel(
 				modelInfo.name,
 				modelInfo.dimensions,
 				modelInfo.description,
@@ -155,10 +155,7 @@ export default class PGLitePlugin extends Plugin {
 				this.settings.relaxedDurability
 			);
 			
-			// 5. Create the vector service
-			this.vectorService = new VectorService(ollamaModel, this.vectorStore);
-			
-			console.log('PGlite and Vector Service initialized successfully');
+			console.log('PGlite and Embedding Model initialized successfully');
 			new Notice('PGlite database connected!');
 		} catch (error) {
 			console.error('Failed to initialize PGlite:', error);
@@ -216,7 +213,7 @@ export default class PGLitePlugin extends Plugin {
 				}
 				
 				// 2. Create the new Ollama model
-				const ollamaModel = new OllamaModel(
+				this.embeddingModel = new OllamaModel(
 					modelInfo.name,
 					modelInfo.dimensions,
 					modelInfo.description,
@@ -228,9 +225,6 @@ export default class PGLitePlugin extends Plugin {
 				
 				// 4. Recreate the vector table with new dimensions
 				await this.vectorStore.createTable(true); // Force recreate
-				
-				// 5. Create a new vector service with the updated model
-				this.vectorService = new VectorService(ollamaModel, this.vectorStore);
 				
 				// 6. Save the database after recreating the vector table
 				await this.vectorStore.save();

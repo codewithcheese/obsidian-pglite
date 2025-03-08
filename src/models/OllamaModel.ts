@@ -39,22 +39,17 @@ export class OllamaModel implements EmbeddingModel {
     async generateEmbedding(text: string): Promise<number[]> {
         console.log(`Generating embedding using ${this.name} for text: ${text.substring(0, 50)}...`);
         
-        try {
-            // Use the AI SDK's embed function with our Ollama model
-            const { embedding } = await embed({
-                model: this.embeddingModel,
-                value: text
-            });
+        // Use the AI SDK's embed function with our Ollama model
+        const { embedding } = await embed({
+            model: this.embeddingModel,
+            value: text
+        });
             
-            // Verify the dimensions match what we expect
-            if (embedding.length !== this.dimensions) {
-                console.warn(`Warning: Expected ${this.dimensions} dimensions but got ${embedding.length}`);
-            }
-            
-            return embedding;
-        } catch (error) {
-            console.error(`Error generating embedding: ${error}`);
-            throw new Error(`Failed to generate embedding: ${error}`);
+        // Verify the dimensions match what we expect
+        if (embedding.length !== this.dimensions) {
+            console.warn(`Warning: Expected ${this.dimensions} dimensions but got ${embedding.length}`);
         }
+            
+        return embedding;
     }
 }

@@ -74,15 +74,15 @@ export class PGLiteSettingTab extends PluginSettingTab {
                     const newModelInfo = ModelRegistry.getModel(newModel);
                     if (!newModelInfo) return;
                     
-                    // Check if vector service exists
-                    if (!this.plugin.vectorService) {
+                    // Check if embedding model exists
+                    if (!this.plugin.embeddingModel) {
                         this.plugin.settings.ollamaModel = newModel;
                         await this.plugin.saveSettings(true);
                         return;
                     }
                     
                     // Get current model dimensions
-                    const currentDimensions = this.plugin.vectorService.getModelDimensions();
+                    const currentDimensions = this.plugin.embeddingModel.dimensions;
                     
                     // If dimensions are different, ask for confirmation
                     if (newModelInfo.dimensions !== currentDimensions) {
