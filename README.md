@@ -79,6 +79,16 @@ The plugin follows a modular architecture:
 - Ensure you have the selected embedding model pulled in Ollama
 - If changing embedding models, be aware that this will recreate the vector table
 
+## Credits
+
+This plugin implementation follows the technical approach documented in the [obsidian-smart-composer DEVELOPMENT.md](https://github.com/glowingjade/obsidian-smart-composer/blob/main/DEVELOPMENT.md), which details critical workarounds for making PGlite function in Obsidian's browser-like environment. Specifically, it addresses:
+
+1. Loading PGlite resources manually instead of using `node:fs` which isn't available in Obsidian
+2. Setting up proper environment configurations to prevent PGlite from detecting a Node environment
+3. Implementing compatibility shims for ESM modules in a CommonJS environment
+
+Thanks to [glowingjade](https://github.com/glowingjade) for the [obsidian-smart-composer DEVELOPMENT.md](https://github.com/glowingjade/obsidian-smart-composer/blob/main/DEVELOPMENT.md) documentation.
+
 ## License
 
 This plugin is licensed under the MIT License.
