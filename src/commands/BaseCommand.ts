@@ -2,7 +2,7 @@ import { Notice, Plugin } from 'obsidian';
 import PGLitePlugin from '../../main';
 import { PGliteVectorStore } from '../storage/PGliteVectorStore';
 import { getModelInfo } from '../settings/PGLitePluginSettings';
-import { getConfigForModel, getEmbeddingModel } from '../utils/EmbeddingHelpers';
+import { createModelInstance, getConfigForModel } from '../models/EmbeddingModel';
 
 export abstract class BaseCommand {
     constructor(protected plugin: PGLitePlugin) {}
@@ -55,10 +55,7 @@ export abstract class BaseCommand {
         // Get the appropriate configuration for the model's provider
         const config = getConfigForModel(this.plugin.settings, modelInfo);
             
-        return getEmbeddingModel(
-            this.plugin.settings.selectedModel,
-            config
-        );
+        return createModelInstance(modelInfo, config);
     }
     
 

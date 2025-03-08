@@ -2,7 +2,7 @@ import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import { PGLitePluginSettings, AVAILABLE_MODELS, getModelInfo } from './PGLitePluginSettings';
 import { ModelChangeConfirmationModal } from '../ui/ModelChangeConfirmationModal';
 import PGLitePlugin from '../../main';
-import { EmbeddingProvider } from '../models/EmbeddingModel';
+import { EmbeddingProvider, MODEL_FIELD_METADATA, ModelConfigField, getRegisteredProviders } from '../models/EmbeddingModel';
 import { PGliteVectorStore } from '../storage/PGliteVectorStore';
 
 /**
@@ -48,46 +48,55 @@ export class PGLiteSettingTab extends PluginSettingTab {
         containerEl.createEl('h3', {text: 'Embeddings'});
         
         // Ollama settings
-        containerEl.createEl('h4', {text: 'Ollama'});
+        // Dynamically generate provider settings UI
+        const registeredProviders = getRegisteredProviders();
         
-        new Setting(containerEl)
-            .setName('Ollama Base URL')
-            .setDesc('The base URL for the Ollama API')
-            .addText(text => text
-                .setPlaceholder('http://localhost:11434/api')
-                .setValue(this.plugin.settings.ollama.baseURL)
-                .onChange(async (value) => {
-                    this.plugin.settings.ollama.baseURL = value;
-                    await this.plugin.saveSettings(true);
-                }));
-        
-        // OpenAI settings
-        containerEl.createEl('h4', {text: 'OpenAI'});
-        
-        new Setting(containerEl)
-            .setName('OpenAI API Key')
-            .setDesc('Your OpenAI API key for embedding generation')
-            .addText(text => text
-                .setPlaceholder('sk-...')
-                .setValue(this.plugin.settings.openai.apiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.openai.apiKey = value;
-                    await this.plugin.saveSettings(true);
-                }));
+        for (const {provider, entry} of registeredProviders) {
+            containerEl.createEl('h4', {text: entry.displayName});
+            
+            // Process all fields (required and optional)
+            const allFields = [...entry.requiredFields, ...entry.optionalFields];
+            
+            for (const fieldKey of allFields) {
+                const metadata = MODEL_FIELD_METADATA[fieldKey];
+                const isOptional = !entry.requiredFields.includes(fieldKey);
                 
-        new Setting(containerEl)
-            .setName('OpenAI Base URL (Optional)')
-            .setDesc('Custom base URL for OpenAI API (leave empty for default)')
-            .addText(text => text
-                .setPlaceholder('https://api.openai.com/v1')
-                .setValue(this.plugin.settings.openai.baseURL || '')
-                .onChange(async (value) => {
-                    this.plugin.settings.openai.baseURL = value || undefined;
-                    await this.plugin.saveSettings(true);
-                }));
+                // Create a custom field name for the provider
+                const fieldName = `${entry.displayName} ${metadata.name}`;
+                
+                const setting = new Setting(containerEl)
+                    .setName(fieldName)
+                    .setDesc(metadata.description + (isOptional ? ' (Optional)' : ''));
+                
+                setting.addText(text => {
+                    const config = this.plugin.settings.providers[provider];
+                    const currentValue = config[fieldKey] as string | undefined;
+                    
+                    // Set up the text field
+                    text.setPlaceholder(metadata.placeholder);
+                    text.setValue(currentValue || '');
+                    
+                    // Use password field for sensitive information
+                    if (metadata.isPassword) {
+                        text.inputEl.type = 'password';
+                    }
+                    
+                    // Set up the change handler
+                    text.onChange(async (value) => {
+                        // Handle optional fields
+                        if (isOptional && value === '') {
+                            this.plugin.settings.providers[provider][fieldKey] = undefined;
+                        } else {
+                            this.plugin.settings.providers[provider][fieldKey] = value;
+                        }
+                        await this.plugin.saveSettings(true);
+                    });
+                });
+            }
+        }
         
         // Model selection
-        containerEl.createEl('h4', {text: 'Model Selection'});
+        containerEl.createEl('h4', {text: 'Default Model'});
         
         new Setting(containerEl)
             .setName('Embedding Model')

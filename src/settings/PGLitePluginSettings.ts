@@ -1,4 +1,4 @@
-import { EmbeddingProvider } from '../models/EmbeddingModel';
+import { EmbeddingProvider, ModelConfig } from '../models/EmbeddingModel';
 
 /**
  * Information about an embedding model
@@ -11,19 +11,40 @@ export interface EmbeddingModelInfo {
 }
 
 /**
+ * Base provider settings interface
+ * All provider settings should extend this
+ */
+export interface ProviderSettings extends ModelConfig {
+    // Base properties that all providers might have
+    baseURL?: string;
+}
+
+/**
  * Ollama provider settings
  */
-export interface OllamaSettings {
-    baseURL: string;
+export interface OllamaSettings extends ProviderSettings {
+    baseURL: string; // Required for Ollama
 }
 
 /**
  * OpenAI provider settings
  */
-export interface OpenAISettings {
+export interface OpenAISettings extends ProviderSettings {
     apiKey: string;
-    baseURL?: string; // Optional custom base URL
+    baseURL?: string; // Optional for OpenAI
 }
+
+/**
+ * Type for provider settings map
+ * This allows for dynamically adding new providers
+ */
+export type ProviderSettingsMap = {
+    [key in EmbeddingProvider]?: ProviderSettings;
+} & {
+    // Ensure required providers are always present
+    [EmbeddingProvider.Ollama]: OllamaSettings;
+    [EmbeddingProvider.OpenAI]: OpenAISettings;
+};
 
 /**
  * Settings for the PGLite plugin
@@ -32,8 +53,8 @@ export interface PGLitePluginSettings {
     databaseName: string;
     relaxedDurability: boolean;
     selectedModel: string;
-    ollama: OllamaSettings;
-    openai: OpenAISettings;
+    // Provider settings map for all embedding providers
+    providers: ProviderSettingsMap;
 }
 
 /**
@@ -43,12 +64,15 @@ export const DEFAULT_SETTINGS: PGLitePluginSettings = {
     databaseName: 'pglite',
     relaxedDurability: true,
     selectedModel: 'nomic-embed-text',
-    ollama: {
-        baseURL: 'http://localhost:11434/api'
-    },
-    openai: {
-        apiKey: '',
-        baseURL: undefined
+    // Initialize the providers map
+    providers: {
+        [EmbeddingProvider.Ollama]: {
+            baseURL: 'http://localhost:11434/api'
+        },
+        [EmbeddingProvider.OpenAI]: {
+            apiKey: '',
+            baseURL: undefined
+        }
     }
 }
 
