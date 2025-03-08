@@ -1,19 +1,27 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { PGliteManager } from './src/PGliteManager';
-
-interface PGLitePluginSettings {
-	databaseName: string;
-	relaxedDurability: boolean;
-}
-
-const DEFAULT_SETTINGS: PGLitePluginSettings = {
-	databaseName: 'pglite',
-	relaxedDurability: true
-}
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, ButtonComponent } from 'obsidian';
+import { PGLitePluginSettings, DEFAULT_SETTINGS } from './src/settings/PGLitePluginSettings';
+import { PGLiteSettingTab } from './src/settings/PGLiteSettingTab';
+import { PGliteProvider } from './src/storage/PGliteProvider';
+import { PGliteVectorStore } from './src/storage/PGliteVectorStore';
+import { VectorService } from './src/services/VectorService';
+import { OllamaModel } from './src/models/OllamaModel';
+import { ModelRegistry } from './src/models/ModelRegistry';
+import {
+    CreateTableCommand,
+    InsertTestDataCommand,
+    QueryTestDataCommand,
+    InsertNoteDataCommand,
+    CreateVectorTableCommand,
+    InsertNoteAsVectorCommand,
+    SearchSimilarToNoteCommand,
+    SearchSimilarWithCustomLimitCommand
+} from './src/commands';
 
 export default class PGLitePlugin extends Plugin {
 	settings: PGLitePluginSettings;
-	dbManager: PGliteManager | null = null;
+	provider: PGliteProvider | null = null;
+	vectorStore: PGliteVectorStore | null = null;
+	vectorService: VectorService | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -24,8 +32,8 @@ export default class PGLitePlugin extends Plugin {
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon('database', 'PGlite Plugin', async (evt: MouseEvent) => {
 			// Called when the user clicks the icon.
-			if (this.dbManager?.isReady()) {
-				await this.dbManager.save();
+			if (this.provider?.isReady()) {
+				await this.provider.save();
 				new Notice('PGlite database saved!');
 			} else {
 				new Notice('PGlite Plugin is active!');
@@ -36,43 +44,79 @@ export default class PGLitePlugin extends Plugin {
 
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('PGlite: ' + (this.dbManager?.isReady() ? 'Connected' : 'Disconnected'));
+		statusBarItemEl.setText('PGlite: ' + (this.provider?.isReady() ? 'Connected' : 'Disconnected'));
 
-		// Command to create a test table
+		// Database-related commands
 		this.addCommand({
 			id: 'pglite-create-test-table',
 			name: 'Create test table',
 			callback: async () => {
-				await this.createTestTable();
+				const command = new CreateTableCommand(this);
+				await command.execute();
 			}
 		});
 
-		// Command to insert test data
 		this.addCommand({
 			id: 'pglite-insert-test-data',
 			name: 'Insert test data',
 			callback: async () => {
-				await this.insertTestData();
+				const command = new InsertTestDataCommand(this);
+				await command.execute();
 			}
 		});
 
-		// Command to query test data
 		this.addCommand({
 			id: 'pglite-query-test-data',
 			name: 'Query test data',
 			callback: async () => {
-				await this.queryTestData();
+				const command = new QueryTestDataCommand(this);
+				await command.execute();
 			}
 		});
 
-		// Command to insert note data
 		this.addCommand({
 			id: 'pglite-insert-current-note',
 			name: 'Insert current note data',
 			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				const noteContent = editor.getValue();
-				const noteTitle = view.file?.basename || 'Untitled';
-				await this.insertNoteData(noteTitle, noteContent);
+				const command = new InsertNoteDataCommand(this);
+				await command.execute(editor, view);
+			}
+		});
+
+		// Vector-related commands
+		this.addCommand({
+			id: 'pglite-create-vector-table',
+			name: 'Create vector table',
+			callback: async () => {
+				const command = new CreateVectorTableCommand(this);
+				await command.execute();
+			}
+		});
+
+		this.addCommand({
+			id: 'pglite-insert-note-as-vector',
+			name: 'Insert current note as vector',
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const command = new InsertNoteAsVectorCommand(this);
+				await command.execute(editor);
+			}
+		});
+
+		this.addCommand({
+			id: 'pglite-search-similar-vectors',
+			name: 'Search similar to current note',
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const command = new SearchSimilarToNoteCommand(this);
+				await command.execute(editor);
+			}
+		});
+
+		this.addCommand({
+			id: 'pglite-search-similar-vectors-custom',
+			name: 'Search similar to current note (custom limit)',
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const command = new SearchSimilarWithCustomLimitCommand(this);
+				await command.execute(editor);
 			}
 		});
 
@@ -82,15 +126,39 @@ export default class PGLitePlugin extends Plugin {
 
 	async initializePGlite() {
 		try {
-			// Initialize PGlite with our PGliteManager
-			this.dbManager = new PGliteManager(
-				this, // Pass the plugin instance instead of just the app
-				this.settings.databaseName,
+			this.provider = new PGliteProvider(
+				this, // Pass the plugin instance
+				this.settings.databaseName
+			);
+			
+			await this.provider.initialize();
+			
+			// 2. Get the model information from the registry
+			const modelInfo = ModelRegistry.getModel(this.settings.ollamaModel);
+			if (!modelInfo) {
+				throw new Error(`Model ${this.settings.ollamaModel} not found in registry`);
+			}
+			
+			// 3. Create the Ollama model
+			const ollamaModel = new OllamaModel(
+				modelInfo.name,
+				modelInfo.dimensions,
+				modelInfo.description,
+				this.settings.ollamaBaseUrl
+			);
+			
+			// 4. Create the vector store
+			this.vectorStore = new PGliteVectorStore(
+				this.provider,
+				modelInfo.dimensions,
+				'vector_test',  // Using default table name
 				this.settings.relaxedDurability
 			);
 			
-			await this.dbManager.initialize();
-			console.log('PGlite initialized successfully');
+			// 5. Create the vector service
+			this.vectorService = new VectorService(ollamaModel, this.vectorStore);
+			
+			console.log('PGlite and Vector Service initialized successfully');
 			new Notice('PGlite database connected!');
 		} catch (error) {
 			console.error('Failed to initialize PGlite:', error);
@@ -98,80 +166,13 @@ export default class PGLitePlugin extends Plugin {
 		}
 	}
 
-	async createTestTable() {
-		if (!this.dbManager || !this.dbManager.isReady()) {
-			new Notice('PGlite is not initialized yet');
-			return;
-		}
 
-		try {
-			await this.dbManager.createTable();
-			// Save the database after creating the table
-			await this.dbManager.save();
-			new Notice('Test table created successfully');
-		} catch (error) {
-			console.error('Error creating test table:', error);
-			new Notice('Error creating test table: ' + (error as Error).message);
-		}
-	}
-
-	async insertTestData() {
-		if (!this.dbManager || !this.dbManager.isReady()) {
-			new Notice('PGlite is not initialized yet');
-			return;
-		}
-
-		try {
-			const id = await this.dbManager.insertTestData();
-			// Save the database after inserting data
-			await this.dbManager.save();
-			new Notice(`Test data inserted with ID: ${id}`);
-		} catch (error) {
-			console.error('Error inserting test data:', error);
-			new Notice('Error inserting test data: ' + (error as Error).message);
-		}
-	}
-
-	async queryTestData() {
-		if (!this.dbManager || !this.dbManager.isReady()) {
-			new Notice('PGlite is not initialized yet');
-			return;
-		}
-
-		try {
-			const rows = await this.dbManager.queryAllData();
-			console.log('Query results:', rows);
-			
-			// Display results in a modal
-			new ResultsModal(this.app, rows).open();
-		} catch (error) {
-			console.error('Error querying test data:', error);
-			new Notice('Error querying test data: ' + (error as Error).message);
-		}
-	}
-
-	async insertNoteData(title: string, content: string) {
-		if (!this.dbManager || !this.dbManager.isReady()) {
-			new Notice('PGlite is not initialized yet');
-			return;
-		}
-
-		try {
-			const id = await this.dbManager.insertNoteData(title, content);
-			// Save the database after inserting note data
-			await this.dbManager.save();
-			new Notice(`Note inserted with ID: ${id}`);
-		} catch (error) {
-			console.error('Error inserting note data:', error);
-			new Notice('Error inserting note data: ' + (error as Error).message);
-		}
-	}
 
 	async onunload() {
-		// Close the PGlite connection when the plugin is unloaded
-		if (this.dbManager) {
-			await this.dbManager.close();
-			console.log('PGlite connection closed');
+		// Close the PGlite connections when the plugin is unloaded
+		if (this.provider) {
+			await this.provider.close();
+			console.log('PGlite provider connection closed');
 		}
 	}
 
@@ -179,106 +180,78 @@ export default class PGLitePlugin extends Plugin {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
-	async saveSettings() {
+	/**
+	 * Save settings to disk
+	 * @param reinitialize Whether to reinitialize PGlite after saving settings
+	 */
+	async saveSettings(reinitialize: boolean) {
+		// Save settings to disk
 		await this.saveData(this.settings);
 		
-		// Reinitialize PGlite if settings have changed
-		if (this.dbManager && this.dbManager.isReady()) {
-			await this.dbManager.close();
+		// Reinitialize PGlite if requested and if provider exists
+		if (reinitialize && this.provider) {
+			await this.provider.close();
 			await this.initializePGlite();
 		}
 	}
-}
 
-class ResultsModal extends Modal {
-	results: any[];
-
-	constructor(app: App, results: any[]) {
-		super(app);
-		this.results = results;
-	}
-
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.createEl('h2', {text: 'Query Results'});
-
-		if (this.results.length === 0) {
-			contentEl.createEl('p', {text: 'No results found'});
-			return;
+	/**
+	 * Update the embedding model used by the plugin
+	 * @param modelName The name of the model to use
+	 */
+	async updateEmbeddingModel(modelName: string): Promise<void> {
+		// Update the model in settings
+		this.settings.ollamaModel = modelName;
+		
+		// Save settings to disk without reinitializing PGlite
+		await this.saveSettings(false);
+		
+		// Only update the components that need to change
+		if (this.provider && this.provider.isReady() && this.vectorStore) {
+			try {
+				// 1. Get the model information from the registry
+				const modelInfo = ModelRegistry.getModel(modelName);
+				if (!modelInfo) {
+					throw new Error(`Model ${modelName} not found in registry`);
+				}
+				
+				// 2. Create the new Ollama model
+				const ollamaModel = new OllamaModel(
+					modelInfo.name,
+					modelInfo.dimensions,
+					modelInfo.description,
+					this.settings.ollamaBaseUrl
+				);
+				
+				// 3. Update the vector store dimensions
+				this.vectorStore.setDimensions(modelInfo.dimensions);
+				
+				// 4. Recreate the vector table with new dimensions
+				await this.vectorStore.createTable(true); // Force recreate
+				
+				// 5. Create a new vector service with the updated model
+				this.vectorService = new VectorService(ollamaModel, this.vectorStore);
+				
+				// 6. Save the database after recreating the vector table
+				await this.vectorStore.save();
+				
+				// Log the update
+				console.log(`Updated embedding model to ${modelName}`);
+				new Notice(`Updated embedding model to ${modelName}`);
+			} catch (error) {
+				console.error('Error updating embedding model:', error);
+				new Notice(`Error updating embedding model: ${error}`);
+				
+				// Fall back to full reinitialization if the targeted update fails
+				await this.provider.close();
+				await this.initializePGlite();
+			}
+		} else {
+			// If provider isn't ready, do a full initialization
+			await this.initializePGlite();
+			console.log(`Updated embedding model to ${modelName}`);
+			new Notice(`Updated embedding model to ${modelName}`);
 		}
-
-		// Create a table to display the results
-		const table = contentEl.createEl('table');
-		
-		// Create table header
-		const thead = table.createEl('thead');
-		const headerRow = thead.createEl('tr');
-		
-		// Get column names from the first result
-		const columns = Object.keys(this.results[0]);
-		columns.forEach(column => {
-			headerRow.createEl('th', {text: column});
-		});
-
-		// Create table body
-		const tbody = table.createEl('tbody');
-		this.results.forEach(row => {
-			const tableRow = tbody.createEl('tr');
-			columns.forEach(column => {
-				tableRow.createEl('td', {text: String(row[column] || '')});
-			});
-		});
-
-		// Add some basic styling
-		contentEl.createEl('style', {
-			text: `
-				table { border-collapse: collapse; width: 100%; }
-				th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-				th { background-color: #f2f2f2; }
-				tr:nth-child(even) { background-color: #f9f9f9; }
-			`
-		});
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
 	}
 }
 
-class PGLiteSettingTab extends PluginSettingTab {
-	plugin: PGLitePlugin;
-
-	constructor(app: App, plugin: PGLitePlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-		containerEl.createEl('h2', {text: 'PGlite Settings'});
-
-		new Setting(containerEl)
-			.setName('Database Name')
-			.setDesc('The name of the IndexedDB database to use')
-			.addText(text => text
-				.setPlaceholder('Enter database name')
-				.setValue(this.plugin.settings.databaseName)
-				.onChange(async (value) => {
-					this.plugin.settings.databaseName = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Relaxed Durability')
-			.setDesc('When enabled, query results are returned immediately and database writes happen asynchronously. This improves performance but may lead to data loss if the application crashes.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.relaxedDurability)
-				.onChange(async (value) => {
-					this.plugin.settings.relaxedDurability = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}
