@@ -1,94 +1,84 @@
-# Obsidian Sample Plugin
+# Obsidian PGlite Plugin
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+A proof-of-concept Obsidian plugin to add PostgreSQL functionality directly to your notes using PGlite, a WebAssembly-based PostgreSQL implementation. This plugin enables vector search capabilities for your notes using Ollama embedding models.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+This plugin is intended for developers to experiment with the integration of PostgreSQL and vector search in Obsidian, not for end-users.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Features
 
-## First time developing plugins?
+- **PostgreSQL in Obsidian**: Run a fully-featured PostgreSQL database within Obsidian using WebAssembly
+- **Vector Search**: Create, store, and search vector embeddings of your notes
+- **Ollama Integration**: Generate embeddings using various Ollama models
+- **Multiple Embedding Models**: Choose from several embedding models with different dimensions
+- **Optimized Performance**: Option for relaxed durability to improve performance
+- **Simple Commands**: Easy-to-use commands for database operations
 
-Quick starting guide for new plugin devs:
+## Getting Started
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+1. Install the plugin from the Obsidian Community Plugins
+2. Make sure you have [Ollama](https://ollama.ai/) installed and running locally
+3. Configure the plugin settings (Ollama URL and model)
+4. Start using the commands to create tables and search your notes
 
-## Releasing new releases
+## Requirements
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+- Obsidian v0.15.0 or higher
+- [Ollama](https://ollama.ai/) running locally (default: http://localhost:11434/api)
+- One of the supported embedding models pulled in Ollama
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## Commands
 
-## Adding your plugin to the community plugin list
+### Database Commands
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+- **Create test table**: Creates a basic table for storing notes
+- **Insert test data**: Inserts sample data into the test table
+- **Query test data**: Retrieves and displays all data from the test table
+- **Insert current note data**: Saves the current note to the database
 
-## How to use
+### Vector Commands
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+- **Create vector table**: Creates a table for storing vector embeddings
+- **Insert current note as vector**: Generates an embedding for the current note and stores it
+- **Search similar to current note**: Finds notes with similar content to the current note
+- **Search similar to current note (custom limit)**: Same as above but with a custom result limit
 
-## Manually installing the plugin
+## Settings
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+- **Database Name**: Name of the database file (default: pglite)
+- **Relaxed Durability**: When enabled, improves performance by handling database writes asynchronously
+- **Ollama Base URL**: URL for the Ollama API (default: http://localhost:11434/api)
+- **Embedding Model**: The model to use for generating embeddings:
+  - **nomic-embed-text**: High quality text embeddings (768 dimensions)
+  - **all-minilm**: Lightweight text embeddings (384 dimensions)
+  - **mxbai-embed-large**: High quality text embeddings (1024 dimensions)
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+## How It Works
 
-## Funding URL
+1. **PGlite Integration**: The plugin loads PGlite from a CDN and initializes a PostgreSQL database
+2. **Database Persistence**: Database state is saved to a file in the plugin directory
+3. **Vector Operations**: The plugin uses the pgvector extension to store and search vector embeddings
+4. **Embedding Generation**: Text is converted to vector embeddings using Ollama models
+5. **Vector Search**: Similar notes are found using cosine similarity between vectors
 
-You can include funding URLs where people who use your plugin can financially support it.
+## Architecture
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+The plugin follows a modular architecture:
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
+- **PGliteProvider**: Manages the PGlite database connection and persistence
+- **PGliteVectorStore**: Handles vector-specific operations using pgvector
+- **EmbeddingModel**: Interface for embedding models
+- **OllamaModel**: Implementation of EmbeddingModel using Ollama
+- **ModelRegistry**: Registry of available embedding models
+- **Commands**: Implementation of all plugin commands
+- **UI Components**: Modals for displaying results and confirmations
 
-If you have multiple URLs, you can also do:
+## Troubleshooting
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+- Make sure Ollama is running locally
+- Check the Ollama Base URL in the plugin settings
+- Ensure you have the selected embedding model pulled in Ollama
+- If changing embedding models, be aware that this will recreate the vector table
 
-## API Documentation
+## License
 
-See https://github.com/obsidianmd/obsidian-api
+This plugin is licensed under the MIT License.
